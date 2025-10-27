@@ -1,42 +1,43 @@
-name: Build python-rtmidi Wheels
+name: Build Project with python-rtmidi
 
 on:
-  workflow_dispatch: # Allows manual trigger
+  push:
+    branches: [ "main" ]
+  pull_request:
 
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Build for Linux, Windows, and macOS
-        os: [ubuntu-latest, windows-latest, macos-latest]
+  build:
+    name: Build and Test on Ubuntu
+    runs-on: ubuntu-latest  # Must use Linux for ALSA
 
     steps:
-      - name: Checkout python-rtmidi (recursive)
-        # We must use 'recursive' to get the rtmidi C++ submodule
+      - name: Checkout your project code
         uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
 
       - name: Set up Python
         uses: actions/setup-python@v5
-
-      - name: Install cibuildwheel
-        run: pip install cibuildwheel
-
-      - name: Build wheels
-        run: cibuildwheel --output-dir wheelhouse
-        env:
-          # For Linux: Install ALSA dev libraries inside the build container
-          CIBW_BEFORE_ALL_LINUX: "apt-get update && apt-get install -y libasound2-dev"
-          
-          # For macOS: Ensure the correct SDK is found
-          CIBW_ENVIRONMENT_MACOS: SDKROOT=macosx
-
-      - name: Upload wheels as an artifact
-        uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
-          path: ./wheelhouse/*.whl
+          python-version: '3.11'
+
+      - name: 1. Install Linux dependencies for python-rtmidi
+        # This is the most important step.
+        # It installs the C++ compiler and ALSA development libraries.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libasound2-dev
+
+      - name: 2. Install your project's dependencies
+        # When pip gets to 'python-rtmidi', it will now
+        # find the headers from 'libasound2-dev' and
+        # build the package from source successfully.
+        run: |
+          pip install -r requirements.txt
+          # or `pip install .` if your project is a package
+
+      - name: 3. Verify rtmidi installation
+        run: |
+          python -c "import rtmidi; print('Successfully built and imported python-rtmidi!')"
+
+      # - name: Run your project's tests
+      #   run: |
+      #     pytest
